@@ -33,6 +33,7 @@ config_get email_from main email_from ""
 
 ubus call modem_at exec '{"cmd": "AT+CMGF=1"}' > /dev/null 2>&1
 ubus call modem_at exec '{"cmd": "AT+CPMS=\"SM\",\"SM\",\"SM\""}' > /dev/null 2>&1
+ubus call modem_at exec '{"cmd": "AT+CNMI=2,1,1,0,0"}' > /dev/null 2>&1
 
 RAW_JSON=$(ubus call modem_at exec '{"cmd": "AT+CMGL=\"ALL\""}')
 json_load "$RAW_JSON"
@@ -115,9 +116,9 @@ if [ "$enable_email" = "1" ] && [ -n "$smtp_server" ] && [ -n "$email_to" ]; the
         SMTP_USER_PASS="$smtp_pass" mailsend \
             -smtp "$smtp_server" -port "$smtp_port" \
             -t "$email_to" -f "$email_from" \
-            -sub "SMS от $sender" \
-            -cs UTF-8 -msg-body "$TMPBODY" \
-            $SSL_FLAG -auth -user "$smtp_user" > /dev/null 2>&1
+            -sub "SMS from $sender" \
+            -mime-type "text/plain" -cs UTF-8 -enc-type "base64" -msg-body "$TMPBODY" \
+            $SSL_FLAG -ehlo -auth -user "$smtp_user" > /dev/null 2>&1
         RET=$?
         rm -f "$TMPBODY"
         if [ $RET -eq 0 ]; then

@@ -15,7 +15,7 @@ var callSmsSync = rpc.declare({ object: 'sms_sqlite', method: 'sync' });
 return view.extend({
 	load: function() {
 		return callSmsGet().then(function(res) {
-			return (res && Array.isArray(res.messages)) ? res.messages : [];
+			return (Array.isArray(res)) ? res : [];
 		}).catch(function() {
 			return [];
 		});

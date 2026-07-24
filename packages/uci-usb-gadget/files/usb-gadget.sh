@@ -80,7 +80,7 @@ load_config() {
 
 log() {
     logger -t usb-gadget "$*"
-    echo "[$(date '+%H:%M:%S')] $*"
+    echo "[$(date '+%H:%M:%S')] $*" >&2
 }
 
 error() {

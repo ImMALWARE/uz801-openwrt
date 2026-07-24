@@ -52,6 +52,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/usb-gadget.sh $(1)/usr/sbin/usb-gadget
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/usb-gadget.init $(1)/etc/init.d/usb-gadget
+	$(INSTALL_DIR) $(1)/etc/rc.d
+	$(LN) ../init.d/usb-gadget $(1)/etc/rc.d/S99usb-gadget
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/usbgadget.config $(1)/etc/config/usbgadget
 endef

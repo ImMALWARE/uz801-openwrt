@@ -33,7 +33,7 @@ config_get email_from main email_from ""
 
 ubus call modem_at exec '{"cmd": "AT+CMGF=1"}' > /dev/null 2>&1
 ubus call modem_at exec '{"cmd": "AT+CPMS=\"SM\",\"SM\",\"SM\""}' > /dev/null 2>&1
-ubus call modem_at exec '{"cmd": "AT+CNMI=2,1,1,0,0"}' > /dev/null 2>&1
+ubus call modem_at exec '{"cmd": "AT+CNMI=2,1,2,0,0"}' > /dev/null 2>&1
 
 RAW_JSON=$(ubus call modem_at exec '{"cmd": "AT+CMGL=\"ALL\""}')
 json_load "$RAW_JSON"

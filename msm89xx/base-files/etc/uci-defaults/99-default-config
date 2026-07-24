@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # We don't have eth0
-uci -q del_list "network.@device[0].ports=eth0" 2>/dev/null || true
+uci del_list "network.@device[0].ports=eth0" 2>/dev/null || true
 sed -i 's/"device": "eth0"/"device": "br-lan"/g' /etc/board.json
 
 # Remove target-specific APK feed (msm89xx is not on downloads.openwrt.org)
@@ -14,5 +14,8 @@ uci set system.@system[0].hostname='UZ801'
 uci set dhcp.lan.ra='disabled'
 uci set dhcp.lan.dhcpv6='disabled'
 uci set dhcp.lan.ndp='disabled'
+/sbin/wifi config
+uci set wireless.default_radio0.multicast_to_unicast='1'
+uci set wireless.default_radio0.ssid='UZ801'
 
 uci commit

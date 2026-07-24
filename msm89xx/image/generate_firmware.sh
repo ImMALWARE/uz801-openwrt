@@ -153,7 +153,7 @@ EXPECTED_SHA256="a37c4e82a970ae2350fcfc7180559caf1dc3928e7c169316fe4ab899b7d305a
 
 if [ ! -f "$FWZIP" ]; then
   wget -q --show-progress -O "$FWZIP" \
-    "http://releases.linaro.org/96boards/dragonboard410c/linaro/rescue/21.12/dragonboard-410c-bootloader-emmc-linux-176.zip"
+    "https://archive.org/download/dragonboard-410c-bootloader-emmc-linux-176/dragonboard-410c-bootloader-emmc-linux-176.zip"
 fi
 
 echo "[+] Verifying firmware integrity..."

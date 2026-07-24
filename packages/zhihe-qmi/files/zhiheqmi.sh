@@ -81,7 +81,7 @@ proto_zhiheqmi_setup() {
 	logger -t zhihe-qmi "Success! IP: $IP/$CIDR, GW: $GW, MTU: $MTU, DNS: $DNS1, $DNS2"
 
 	proto_init_update "$iface" 1
-	proto_add_ipv4_address "$IP" "$CIDR"
+	proto_add_ipv4_address "$IP" "$CIDR" "" "$GW"
 	[ -n "$GW" ] && proto_add_ipv4_route "0.0.0.0" 0 "$GW"
 	[ -n "$DNS1" ] && proto_add_dns_server "$DNS1"
 	[ -n "$DNS2" ] && proto_add_dns_server "$DNS2"
@@ -128,9 +128,6 @@ proto_zhiheqmi_teardown() {
 	fi
 
 	ip link set "$iface" down 2>/dev/null || true
-
-	proto_init_update "*" 0
-	proto_send_update "$config"
 }
 
 [ -n "$INCLUDE_ONLY" ] || add_protocol zhiheqmi

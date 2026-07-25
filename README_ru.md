@@ -97,26 +97,41 @@ uci commit sms_sync
 sysupgrade -v /tmp/openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-sysupgrade.bin
 ```
 
-### Способ 2: Через режим EDL 
-1. Подключитесь к модему по SSH и повредите раздел загрузчика `boot`, чтобы отправить модем в аварийный режим EDL:
+### Способ 2: Через fastboot 
+1. Подключитесь к модему по SSH и повредите раздел загрузчика `boot`, чтобы отправить модем в fastboot:
     ```sh
     dd if=/dev/zero of=/dev/mmcblk0p13 bs=1M count=1
     reboot
     ```
-    Модем перезагрузится с поврежденным ядром и автоматически перейдет в режим EDL.
+    Модем перезагрузится с поврежденным ядром и автоматически перейдет в режим fastboot.
 
-2. Подключите модем к ПК на Linux с установленными EDL-инструментами и запишите новые файлы ядра и системы:
+2. Подключите модем к ПК на Linux с установленным fastboot и запишите новые файлы ядра и системы:
     ```sh
-    edl w boot openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-boot.img
-    edl w rootfs openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-system.img
+    fastboot flash boot openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-boot.img
+    fastboot flash rootfs openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-system.img
     ```
 
 3. Если вы хотите полностью сбросить настройки и удалить все пользовательские данные, сотрите раздел `rootfs_data`. Если вы хотите сохранить настройки и данные, пропустите этот шаг:
     ```sh
-    edl e rootfs_data
+    fastboot erase rootfs_data
     ```
 
 4. Перезагрузите модем:
     ```sh
-    edl reset
+    fastboot reboot
     ```
+
+5. Исправьте конфликты с базой данных установленных пакетов:
+	```sh
+	rm -f /overlay/upper/lib/apk/db/installed
+	cat /overlay/upper/etc/apk/world 2>/dev/null | grep -vE '^(kernel=|base-files=)' | cat - /rom/etc/apk/world | sort -u > /tmp/world.merged && mv /tmp/world.merged /overlay/upper/etc/apk/world
+	```
+	**ПЕРЕЗАГРУЗИТЕ МОДЕМ ПОСЛЕ ЭТОГО!**
+	```sh
+	reboot
+	```
+
+	```sh
+	apk update
+	apk fix
+	```

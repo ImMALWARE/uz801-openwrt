@@ -45,7 +45,7 @@ Packages written from scratch:
 
 Unfortunately, I couldn't set up IPv6 on cellular connection :(
 
-# How to install on Linux machine
+# How to install from Linux computer
 1. Download all files from latest OpenWrt release ([releases page](https://github.com/ImMALWARE/uz801-openwrt/releases)).
 2. Enable ADB on modem by opening http://192.168.100.1/usbdebug.html
 3. Install adb and [edl tools](https://github.com/bkerler/edl) on your computer
@@ -83,3 +83,40 @@ uci set sms_sync.main.email_from='router@example.com'
 ```sh
 uci commit sms_sync
 ```
+
+# How to update to a new version
+## Method 1: Via sysupgrade (Recommended)
+1. Download `openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-sysupgrade.bin` from the new release.
+2. In LuCI, go to System -> Backup / Flash Firmware.
+3. In the "Flash new firmware image" section, select the downloaded `.bin` file and click Flash image. If needed, enable or disable "Keep settings".
+4. Wait for flashing to complete and for the modem to reboot automatically.
+
+Alternative via SSH:
+Upload the `.bin` file to `/tmp/` on the modem and run:
+```sh
+sysupgrade -v /tmp/openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-sysupgrade.bin
+```
+
+### Method 2: Via EDL mode
+1. Connect to the modem over SSH and corrupt the `boot` partition to force the modem into emergency EDL mode:
+	```sh
+	dd if=/dev/zero of=/dev/mmcblk0p13 bs=1M count=1
+	reboot
+	```
+	The modem will reboot with a corrupted kernel and automatically enter EDL mode.
+
+2. Connect the modem to a Linux PC with EDL tools installed, then write the new boot and system images:
+	```sh
+	edl w boot openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-boot.img
+	edl w rootfs openwrt-msm89xx-msm8916-yiming-uz801v3-squashfs-system.img
+	```
+
+3. If you want a full reset and to remove all user data, erase the `rootfs_data` partition. If you want to keep settings and data, skip this step:
+	```sh
+	edl e rootfs_data
+	```
+
+4. Reboot the modem:
+	```sh
+	edl reset
+	```

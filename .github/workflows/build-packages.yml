@@ -107,25 +107,19 @@ jobs:
         working-directory: openwrt
         run: make target/linux/compile -j$(nproc) || make target/linux/compile -j1 V=s
 
-      - name: Build custom packages
+      - name: Build all packages
         working-directory: openwrt
         run: |
+          make package/compile -j$(nproc) || make package/compile -j1 V=s
           for pkg_dir in ../packages/*/; do
             pkg_name=$(basename "$pkg_dir")
-            echo "-> Building $pkg_name..."
-            make "package/msm8916/$pkg_name/compile" -j$(nproc) \
-              || make "package/msm8916/$pkg_name/compile" -j1 V=s
+            make "package/msm8916/$pkg_name/compile" -j$(nproc) || true
           done
-          make "package/kmod-amneziawg/compile" -j$(nproc) || make "package/kmod-amneziawg/compile" -j1 V=s
-          make "package/amneziawg-tools/compile" -j$(nproc) || make "package/amneziawg-tools/compile" -j1 V=s
-          make "package/luci-proto-amneziawg/compile" -j$(nproc) || make "package/luci-proto-amneziawg/compile" -j1 V=s
 
       - name: Collect .apk artifacts
         run: |
           mkdir -p release_files
-          find openwrt/bin/packages -name "*.apk" -exec cp {} release_files/ \;
-          echo "Collected packages:"
-          ls -lh release_files/
+          find openwrt/bin/ -name "*.apk" -exec cp {} release_files/ \;
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

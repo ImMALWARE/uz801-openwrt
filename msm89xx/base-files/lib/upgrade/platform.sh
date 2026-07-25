@@ -8,7 +8,7 @@ RAMFS_COPY_DATA="/lib/functions.sh /lib/upgrade/common.sh /lib/upgrade/fwtool.sh
 platform_check_image() {
     local fw_image="$1"
 
-    if ! tar tf "$fw_image" | grep -q 'sysupgrade-.*/CONTROL'; then
+    if ! tar tf "$fw_image" 2>/dev/null | grep -qE '^(\./)?sysupgrade-[^/]+/CONTROL$'; then
         echo "Invalid sysupgrade file: $fw_image"
         return 1
     fi

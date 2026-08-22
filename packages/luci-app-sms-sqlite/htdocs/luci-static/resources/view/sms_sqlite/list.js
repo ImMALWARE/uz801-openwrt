@@ -83,7 +83,7 @@ return view.extend({
 					E('td', { class: 'td' }, E('input', { type: 'checkbox', class: 'sms-cb', value: String(sms.id) })),
 					E('td', { class: 'td' }, sms.sender),
 					E('td', { class: 'td' }, dateStr),
-					E('td', { class: 'td' }, sms.message)
+					E('td', { class: 'td', style: 'white-space: pre-wrap;' }, sms.message)
 				]));
 			});
 		}

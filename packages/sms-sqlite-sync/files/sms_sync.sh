@@ -68,14 +68,123 @@ function hex2dec(h,   i, result, digit) {
 }'
 }
 
-save_ucs2_sms() {
+decode_gsm7() {
+    printf '%s\n' "$1" | LC_ALL=C awk '
+function hex2dec(value, position, result, digit) {
+    result = 0
+    for (position = 1; position <= length(value); position++) {
+        digit = index("0123456789ABCDEF", toupper(substr(value, position, 1))) - 1
+        result = result * 16 + digit
+    }
+    return result
+}
+function utf8(codepoint) {
+    if (codepoint < 128)
+        return sprintf("%c", codepoint)
+    if (codepoint < 2048)
+        return sprintf("%c%c", 192 + int(codepoint / 64), 128 + codepoint % 64)
+    return sprintf("%c%c%c", 224 + int(codepoint / 4096), 128 + int((codepoint % 4096) / 64), 128 + codepoint % 64)
+}
+function gsm7_character(septet, escaped,    extension) {
+    if (escaped) {
+        extension[10] = 12
+        extension[20] = 94
+        extension[40] = 123
+        extension[41] = 125
+        extension[47] = 92
+        extension[60] = 91
+        extension[61] = 126
+        extension[62] = 93
+        extension[64] = 124
+        extension[101] = 8364
+        return (septet in extension ? utf8(extension[septet]) : "")
+    }
+    if (septet == 0) return "@"
+    if (septet == 1) return utf8(163)
+    if (septet == 2) return "$"
+    if (septet == 3) return utf8(165)
+    if (septet == 4) return utf8(232)
+    if (septet == 5) return utf8(233)
+    if (septet == 6) return utf8(249)
+    if (septet == 7) return utf8(236)
+    if (septet == 8) return utf8(242)
+    if (septet == 9) return utf8(199)
+    if (septet == 10) return "\n"
+    if (septet == 11) return utf8(216)
+    if (septet == 12) return utf8(248)
+    if (septet == 13) return "\r"
+    if (septet == 14) return utf8(197)
+    if (septet == 15) return utf8(229)
+    if (septet == 16) return utf8(916)
+    if (septet == 17) return "_"
+    if (septet == 18) return utf8(934)
+    if (septet == 19) return utf8(915)
+    if (septet == 20) return utf8(923)
+    if (septet == 21) return utf8(937)
+    if (septet == 22) return utf8(928)
+    if (septet == 23) return utf8(936)
+    if (septet == 24) return utf8(931)
+    if (septet == 25) return utf8(920)
+    if (septet == 26) return utf8(926)
+    if (septet == 28) return utf8(198)
+    if (septet == 29) return utf8(230)
+    if (septet == 30) return utf8(223)
+    if (septet == 31) return utf8(201)
+    if (septet == 36) return utf8(164)
+    if (septet == 64) return utf8(161)
+    if (septet == 91) return utf8(196)
+    if (septet == 92) return utf8(214)
+    if (septet == 93) return utf8(209)
+    if (septet == 94) return utf8(220)
+    if (septet == 95) return utf8(167)
+    if (septet == 96) return utf8(191)
+    if (septet == 123) return utf8(228)
+    if (septet == 124) return utf8(246)
+    if (septet == 125) return utf8(241)
+    if (septet == 126) return utf8(252)
+    if (septet == 127) return utf8(224)
+    return sprintf("%c", septet)
+}
+{
+    for (position = 1; position <= length($0); position += 2)
+        bytes[(position - 1) / 2] = hex2dec(substr($0, position, 2))
+
+    escaped = 0
+    for (character = 0; character < character_count; character++) {
+        bit_position = start_bit + character * 7
+        byte_index = int(bit_position / 8)
+        shift = bit_position % 8
+        septet = int(bytes[byte_index] / (2 ^ shift)) % 128
+        if (shift > 1)
+            septet += (bytes[byte_index + 1] % (2 ^ (shift - 1))) * (2 ^ (8 - shift))
+        if (septet == 27) {
+            escaped = 1
+        } else {
+            printf "%s", gsm7_character(septet, escaped)
+            escaped = 0
+        }
+    }
+}' character_count="$2" start_bit="${3:-0}"
+}
+
+save_sms() {
     sms_indexes="$1"
     sms_sender="$2"
     sms_date="$3"
-    sms_payload="$4"
+    sms_encoding="$4"
+    sms_segments="$5"
     sms_file="$(mktemp /tmp/sms_message.XXXXXX)" || return 1
 
-    decode_ucs2 "$sms_payload" > "$sms_file"
+    for sms_segment in $(printf '%s' "$sms_segments" | tr ',' ' '); do
+        sms_data="${sms_segment%%:*}"
+        sms_segment="${sms_segment#*:}"
+        sms_length="${sms_segment%%:*}"
+        sms_offset="${sms_segment#*:}"
+        case "$sms_encoding" in
+            UCS2) decode_ucs2 "$sms_data" >> "$sms_file" ;;
+            GSM7) decode_gsm7 "$sms_data" "$sms_length" "$sms_offset" >> "$sms_file" ;;
+        esac
+    done
     if sqlite3 "$DB_FILE" "INSERT INTO sms (sender, message, receive_date) VALUES ($(sql_text "$sms_sender"), $(sql_file_text "$sms_file"), $(sql_text "$sms_date"));"; then
         for sms_index in $sms_indexes; do
             ubus call modem_at exec "{\"cmd\": \"AT+CMGD=$sms_index\"}" > /dev/null 2>&1
@@ -132,7 +241,7 @@ function received_date(value) {
 function emit_error(index_value, description, raw) {
     printf "E\t%s\t%s\t%s\n", index_value, description, raw
 }
-function parse_pdu(index_value, pdu, position, smsc_length, first_octet, address_length, address_type, address_bytes, address, pid, dcs, timestamp, user_length, user_data, udhl, header, header_position, iei, ie_length, reference, total, sequence, payload) {
+function parse_pdu(index_value, pdu, position, smsc_length, first_octet, address_length, address_type, address_bytes, address, pid, dcs, timestamp, user_length, user_data, encoding, udhl, header, header_position, iei, ie_length, reference, total, sequence, payload, text_length, text_bit_offset, header_bits) {
     if (pdu !~ /^[0-9A-Fa-f]+$/ || length(pdu) < 30) {
         emit_error(index_value, "Invalid PDU", pdu)
         return
@@ -151,8 +260,8 @@ function parse_pdu(index_value, pdu, position, smsc_length, first_octet, address
     position += 2
     address_type = substr(pdu, position, 2)
     position += 2
-    address_bytes = (toupper(address_type) == "D0" ? int((address_length * 7 + 7) / 8) : int((address_length + 1) / 2))
-    address = (toupper(address_type) == "D0" ? sender_alphanumeric(substr(pdu, position, address_bytes * 2), address_length) : sender_number(substr(pdu, position, address_bytes * 2), address_length, address_type))
+    address_bytes = int((address_length + 1) / 2)
+    address = (toupper(address_type) == "D0" ? sender_alphanumeric(substr(pdu, position, address_bytes * 2), int(address_bytes * 8 / 7)) : sender_number(substr(pdu, position, address_bytes * 2), address_length, address_type))
     position += address_bytes * 2
     pid = byte_at(pdu, position)
     position += 2
@@ -162,17 +271,23 @@ function parse_pdu(index_value, pdu, position, smsc_length, first_octet, address
     position += 14
     user_length = byte_at(pdu, position)
     position += 2
-    user_data = substr(pdu, position, user_length * 2)
 
-    if (dcs != 8) {
+    if (dcs == 8)
+        encoding = "UCS2"
+    else if (dcs == 0)
+        encoding = "GSM7"
+    else {
         emit_error(index_value, "Unsupported SMS encoding", pdu)
         return
     }
+    user_data = substr(pdu, position, (encoding == "GSM7" ? int((user_length * 7 + 7) / 8) : user_length) * 2)
 
     reference = "-"
     total = 1
     sequence = 1
     payload = user_data
+    text_length = user_length
+    text_bit_offset = 0
     if (int(first_octet / 64) % 2 == 1) {
         udhl = byte_at(user_data, 1)
         header = substr(user_data, 3, udhl * 2)
@@ -187,14 +302,21 @@ function parse_pdu(index_value, pdu, position, smsc_length, first_octet, address
             }
             header_position += 4 + ie_length * 2
         }
-        payload = substr(user_data, 3 + udhl * 2)
+        if (encoding == "GSM7") {
+            header_bits = (udhl + 1) * 8
+            text_length = user_length - int((header_bits + 6) / 7)
+            text_bit_offset = int((header_bits + 6) / 7) * 7
+        } else {
+            payload = substr(user_data, 3 + udhl * 2)
+            text_length = length(payload) / 4
+        }
     }
 
-    if (length(payload) % 4 != 0 || total < 1 || sequence < 1 || sequence > total) {
-        emit_error(index_value, "Invalid UCS-2 payload or concatenation header", pdu)
+    if ((encoding == "UCS2" && length(payload) % 4 != 0) || total < 1 || sequence < 1 || sequence > total) {
+        emit_error(index_value, "Invalid SMS payload or concatenation header", pdu)
         return
     }
-    printf "P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", index_value, address, timestamp, reference, total, sequence, payload
+    printf "P\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", index_value, address, timestamp, reference, total, sequence, encoding, text_length, text_bit_offset, payload
 }
 /^\+CMGL:/ {
     index_value = $0
@@ -227,18 +349,20 @@ process_concatenated_group() {
     sms_indexes=""
     sms_sender=""
     sms_date=""
-    sms_payload=""
+    sms_encoding=""
+    sms_segments=""
     sorted_group_file="$group_file.sorted"
     sort -n "$group_file" > "$sorted_group_file"
-    while IFS="$(printf '\t')" read -r sequence sms_index sender received_date total payload; do
+    while IFS="$(printf '\t')" read -r sequence sms_index sender received_date total encoding sms_length sms_offset payload; do
         [ "$sequence" = "1" ] && {
             sms_sender="$sender"
             sms_date="$received_date"
         }
         sms_indexes="$sms_indexes $sms_index"
-        sms_payload="$sms_payload$payload"
+        sms_encoding="$encoding"
+        sms_segments="$sms_segments${sms_segments:+,}$payload:$sms_length:$sms_offset"
     done < "$sorted_group_file"
-    save_ucs2_sms "$sms_indexes" "$sms_sender" "$sms_date" "$sms_payload"
+    save_sms "$sms_indexes" "$sms_sender" "$sms_date" "$sms_encoding" "$sms_segments"
 }
 
 ubus call modem_at exec '{"cmd": "AT+CMGF=0"}' > /dev/null 2>&1
@@ -252,14 +376,14 @@ work_dir="$(mktemp -d /tmp/sms_pdu.XXXXXX)" || exit 1
 records_file="$work_dir/records"
 printf '%s\n' "$RAW_TEXT" | tr -d '\r' | parse_pdu_records > "$records_file"
 
-while IFS="$(printf '\t')" read -r record_type sms_index sms_sender sms_date reference total sequence payload; do
+while IFS="$(printf '\t')" read -r record_type sms_index sms_sender sms_date reference total sequence encoding sms_length sms_offset payload; do
     case "$record_type" in
         P)
             if [ "$total" = "1" ]; then
-                save_ucs2_sms "$sms_index" "$sms_sender" "$sms_date" "$payload"
+                save_sms "$sms_index" "$sms_sender" "$sms_date" "$encoding" "$payload:$sms_length:$sms_offset"
             else
                 group_key="$(printf '%s' "$sms_sender|$reference|$total" | hexdump -v -e '1/1 "%02x"')"
-                printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sequence" "$sms_index" "$sms_sender" "$sms_date" "$total" "$payload" >> "$work_dir/group_$group_key"
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$sequence" "$sms_index" "$sms_sender" "$sms_date" "$total" "$encoding" "$sms_length" "$sms_offset" "$payload" >> "$work_dir/group_$group_key"
             fi
             ;;
         E)

@@ -86,7 +86,7 @@ EOF
 echo "mac80211 patches applied successfully"
 
 if [ ! -d "awg-src" ]; then
-    git clone --depth 1 https://github.com/Slava-Shchipunov/awg-openwrt.git awg-src
+    git clone https://github.com/2Grey/awg-openwrt.git --depth 1 --revision=7e48912b3ad001fba24ef989330acf9cd973c81a awg-src
 fi
 cp -r awg-src/kmod-amneziawg "$OPENWRT_DIR/package/"
 cp -r awg-src/amneziawg-tools "$OPENWRT_DIR/package/"

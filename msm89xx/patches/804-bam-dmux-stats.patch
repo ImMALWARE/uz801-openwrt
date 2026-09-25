@@ -1,20 +1,36 @@
 --- a/drivers/net/wwan/qcom_bam_dmux.c
 +++ b/drivers/net/wwan/qcom_bam_dmux.c
-@@ -318,6 +318,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
+@@ -63,6 +63,7 @@ struct bam_dmux_skb_dma {
+ 	struct bam_dmux *dmux;
+ 	struct sk_buff *skb;
+ 	dma_addr_t addr;
++	unsigned int data_len;
+ };
+
+ struct bam_dmux {
+@@ -312,6 +313,7 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
+ 	if (active < 0 && active != -EINPROGRESS)
+ 		goto drop;
+ 
++	skb_dma->data_len = skb->len;
+ 	ret = bam_dmux_tx_prepare_skb(bndev, skb);
+ 	if (ret)
+ 		goto drop;
+@@ -318,6 +320,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
  		if (!atomic_long_fetch_or(BIT(skb_dma - dmux->tx_skbs),
  					  &dmux->tx_deferred_skb))
  			queue_pm_work(&dmux->tx_wakeup_work);
 +		DEV_STATS_INC(netdev, tx_packets);
-+		DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++		DEV_STATS_ADD(netdev, tx_bytes, skb_dma->data_len);
  		return NETDEV_TX_OK;
  	}
  
-@@ -326,6 +328,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
+@@ -326,6 +330,8 @@ static netdev_tx_t bam_dmux_netdev_start_xmit(struct sk_buff *skb,
  		goto drop;
  
- 	dma_async_issue_pending(dmux->tx);
 +	DEV_STATS_INC(netdev, tx_packets);
-+	DEV_STATS_ADD(netdev, tx_bytes, skb->len);
++	DEV_STATS_ADD(netdev, tx_bytes, skb_dma->data_len);
+ 	dma_async_issue_pending(dmux->tx);
  	return NETDEV_TX_OK;
  
  drop:
